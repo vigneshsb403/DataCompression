@@ -39,7 +39,7 @@ python demo_compress.py your_image.jpg --lmb 512
 
 ## 🌐 Web Interface (Best for Presentations)
 
-### Start the Web Server
+### Option A: Direct Access (Port 5000)
 
 ```bash
 # Install Flask if needed
@@ -49,12 +49,28 @@ pip install flask
 python web_demo.py
 ```
 
-### Access It
+**Access:** `http://YOUR_EC2_PUBLIC_IP:5000`
 
-- **On AWS:** Open `http://YOUR_EC2_PUBLIC_IP:5000` in your browser
-- **Locally:** Open `http://localhost:5000` in your browser
+**Note:** Requires port 5000 open in security group.
 
-**Don't forget:** Make sure port 5000 is open in your AWS security group!
+### Option B: Via Nginx (Port 80) - Recommended
+
+**Setup nginx reverse proxy (one-time setup):**
+
+```bash
+cd /home/ec2-user/DataCompression/lossy-vae
+chmod +x setup_nginx.sh
+./setup_nginx.sh
+```
+
+**Then start Flask app:**
+```bash
+python web_demo.py
+```
+
+**Access:** `http://YOUR_EC2_PUBLIC_IP` (no port needed!)
+
+**Note:** Only requires port 80 open in security group (usually already open).
 
 ### Use It
 
