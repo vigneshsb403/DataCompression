@@ -70,10 +70,10 @@ def rd_model_base(lmb_range=(4,2048), pretrained=False):
     model = lib.VariableRateLossyVAE(cfg)
     if pretrained is True:
         url = 'https://huggingface.co/duanzh0/my-model-weights/resolve/main/rd_model_base-200k-feb14-2023.pt'
-        msd = load_state_dict_from_url(url)['model']
+        msd = load_state_dict_from_url(url, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     return model
 

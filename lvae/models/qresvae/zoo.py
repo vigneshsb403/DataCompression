@@ -50,10 +50,10 @@ def qres34m(lmb=32, pretrained=False):
     model = qres.HierarchicalVAE(cfg)
     if (pretrained is True) and (lmb in {16, 32, 64, 128, 256, 512, 1024, 2048}):
         url = f'https://huggingface.co/duanzh0/my-model-weights/resolve/main/qres34m/qres34m-lmb{lmb}.pt'
-        msd = load_state_dict_from_url(url)['model']
+        msd = load_state_dict_from_url(url, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     else:
         assert pretrained is False, f'Invalid {pretrained=} and {lmb=}'
@@ -105,10 +105,10 @@ def qres34m_lossless(pretrained=False):
     model = qres.HierarchicalVAE(cfg)
     if pretrained is True:
         url = 'https://huggingface.co/duanzh0/my-model-weights/resolve/main/qres34m/qres34m-lossless.pt'
-        msd = load_state_dict_from_url(url)['model']
+        msd = load_state_dict_from_url(url, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     else:
         assert pretrained is False, f'Invalid {pretrained=}'
@@ -156,10 +156,10 @@ def qres17m(lmb=8, pretrained=False):
     model = qres.HierarchicalVAE(cfg)
     if (pretrained is True) and (lmb in {1, 2, 4, 8, 16, 32, 64, 1024}):
         url = f'https://huggingface.co/duanzh0/my-model-weights/resolve/main/qres17m/qres17m-lmb{lmb}.pt'
-        msd = load_state_dict_from_url(url)['model']
+        msd = load_state_dict_from_url(url, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     else:
         assert pretrained is False, f'Invalid {pretrained=} and {lmb=}'

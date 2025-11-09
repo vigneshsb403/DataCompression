@@ -68,7 +68,7 @@ def rd_ablation_c64_l5_nosmooth(lmb_range=(4,2048), pretrained=False):
 
     model = lib.VariableRateLossyVAE(cfg)
     if isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained:
         raise NotImplementedError()
@@ -137,7 +137,7 @@ def rd_ablation_c64_l5(lmb_range=(4,2048), pretrained=False):
 
     model = lib.VariableRateLossyVAE(cfg)
     if isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained:
         raise NotImplementedError()
@@ -206,7 +206,7 @@ def rd_ablation_c64_l10(lmb_range=(4,2048), pretrained=False):
 
     model = lib.VariableRateLossyVAE(cfg)
     if isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained:
         raise NotImplementedError()
@@ -275,7 +275,7 @@ def rd_ablation_c64_l15(lmb_range=(4,2048), pretrained=False):
 
     model = lib.VariableRateLossyVAE(cfg)
     if isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained:
         raise NotImplementedError()
@@ -344,7 +344,7 @@ def rd_ablation_c96_l15(lmb_range=(4,2048), pretrained=False):
 
     model = lib.VariableRateLossyVAE(cfg)
     if isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained:
         raise NotImplementedError()
@@ -413,7 +413,7 @@ def rd_ablation_c128_l10(lmb_range=(4,2048), pretrained=False):
 
     model = lib.VariableRateLossyVAE(cfg)
     if isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained:
         raise NotImplementedError()
@@ -481,12 +481,12 @@ def rd_ablation_base_nosmooth(lmb_range=(4,2048), pretrained=False):
 
     model = lib.VariableRateLossyVAE(cfg)
     if isinstance(pretrained, str):
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained:
         raise NotImplementedError()
         url = 'https://huggingface.co/duanzh0/my-model-weights/resolve/main/qarv_base-dec12-2022.pt'
-        msd = load_state_dict_from_url(url)['model']
+        msd = load_state_dict_from_url(url, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     return model
 

@@ -91,9 +91,9 @@ def qarv_base(lmb_range=(16,2048), pretrained=False):
 
     if pretrained is True:
         url = 'https://huggingface.co/duanzh0/my-model-weights/resolve/main/qarv_base-2022-dec-12.pt'
-        msd = load_state_dict_from_url(url)['model']
+        msd = load_state_dict_from_url(url, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     elif pretrained: # str or Path
-        msd = torch.load(pretrained)['model']
+        msd = torch.load(pretrained, map_location=torch.device('cpu'))['model']
         model.load_state_dict(msd)
     return model
