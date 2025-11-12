@@ -275,6 +275,50 @@
             display: block;
         }
         
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 15px 30px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tab:hover {
+            color: #667eea;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .decompress-results {
+            display: none;
+        }
+        
+        .decompress-results.show {
+            display: block;
+        }
+        
         @media (max-width: 768px) {
             .image-comparison {
                 grid-template-columns: 1fr;
@@ -283,6 +327,10 @@
             .header h1 {
                 font-size: 1.8em;
             }
+            
+            .tabs {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -290,10 +338,16 @@
     <div class="container">
         <div class="header">
             <h1>🎨 Lossy-VAE Image Compression</h1>
-            <p>Upload an image and see it compressed using deep learning</p>
+            <p>Compress images or decompress compressed bits files</p>
         </div>
         
         <div class="content">
+            <div class="tabs">
+                <button class="tab active" id="compressTab" onclick="switchTab('compress')">📦 Compress Image</button>
+                <button class="tab" id="decompressTab" onclick="switchTab('decompress')">📥 Decompress Bits</button>
+            </div>
+            
+            <div id="compressContent" class="tab-content active">
             <div class="upload-section" id="uploadSection">
                 <div class="file-input-wrapper">
                     <input type="file" id="fileInput" accept="image/*">
@@ -358,10 +412,72 @@
                     <a href="#" class="download-btn" id="downloadBits" style="background: #17a2b8;">⬇️ Download Compressed Bits</a>
                 </div>
             </div>
+            </div>
+            
+            <div id="decompressContent" class="tab-content">
+                <div class="upload-section" id="decompressUploadSection">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="bitsFileInput" accept=".bits">
+                        <label for="bitsFileInput" class="upload-btn">📁 Choose Bits File (.bits) or Drag & Drop</label>
+                    </div>
+                    <p id="bitsFileName" style="margin-top: 15px; color: #666;"></p>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <button class="compress-btn" id="decompressBtn" disabled>🚀 Decompress Image</button>
+                </div>
+                
+                <div class="loading" id="decompressLoading">
+                    <div class="spinner"></div>
+                    <p>Decompressing image... This may take a moment.</p>
+                </div>
+                
+                <div class="error" id="decompressError"></div>
+                
+                <div class="decompress-results" id="decompressResults">
+                    <div class="stats">
+                        <h2 style="margin-bottom: 15px; text-align: center;">Decompression Info</h2>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value" id="decompressedSize">-</div>
+                                <div class="stat-label">Compressed File Size</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="decompressedDimensions">-</div>
+                                <div class="stat-label">Image Dimensions</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="image-comparison" style="grid-template-columns: 1fr;">
+                        <div class="image-box">
+                            <h3>Decompressed Image</h3>
+                            <img id="decompressedImage" alt="Decompressed">
+                        </div>
+                    </div>
+                    
+                    <div class="download-section">
+                        <a href="#" class="download-btn" id="downloadDecompressed">⬇️ Download Decompressed Image</a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
     <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'compress') {
+                document.getElementById('compressTab').classList.add('active');
+                document.getElementById('compressContent').classList.add('active');
+            } else {
+                document.getElementById('decompressTab').classList.add('active');
+                document.getElementById('decompressContent').classList.add('active');
+            }
+        }
+        
         const fileInput = document.getElementById('fileInput');
         const uploadSection = document.getElementById('uploadSection');
         const fileName = document.getElementById('fileName');
@@ -372,7 +488,16 @@
         const results = document.getElementById('results');
         const error = document.getElementById('error');
         
+        const bitsFileInput = document.getElementById('bitsFileInput');
+        const decompressUploadSection = document.getElementById('decompressUploadSection');
+        const bitsFileName = document.getElementById('bitsFileName');
+        const decompressBtn = document.getElementById('decompressBtn');
+        const decompressLoading = document.getElementById('decompressLoading');
+        const decompressResults = document.getElementById('decompressResults');
+        const decompressError = document.getElementById('decompressError');
+        
         let selectedFile = null;
+        let selectedBitsFile = null;
         
         lmbSlider.addEventListener('input', (e) => {
             lmbInput.value = e.target.value;
@@ -477,6 +602,82 @@
             const sizes = ['Bytes', 'KB', 'MB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        bitsFileInput.addEventListener('change', (e) => {
+            handleBitsFile(e.target.files[0]);
+        });
+        
+        decompressUploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            decompressUploadSection.classList.add('dragover');
+        });
+        
+        decompressUploadSection.addEventListener('dragleave', () => {
+            decompressUploadSection.classList.remove('dragover');
+        });
+        
+        decompressUploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            decompressUploadSection.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleBitsFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        function handleBitsFile(file) {
+            if (!file.name.endsWith('.bits')) {
+                showDecompressError('Please select a .bits file');
+                return;
+            }
+            
+            selectedBitsFile = file;
+            bitsFileName.textContent = `Selected: ${file.name}`;
+            decompressBtn.disabled = false;
+        }
+        
+        decompressBtn.addEventListener('click', async () => {
+            if (!selectedBitsFile) return;
+            
+            decompressLoading.classList.add('show');
+            decompressResults.classList.remove('show');
+            decompressError.classList.remove('show');
+            decompressBtn.disabled = true;
+            
+            const formData = new FormData();
+            formData.append('bits_file', selectedBitsFile);
+            
+            try {
+                const response = await fetch('/decompress', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Decompression failed');
+                }
+                
+                document.getElementById('decompressedSize').textContent = formatBytes(data.compressed_size);
+                document.getElementById('decompressedDimensions').textContent = `${data.image_width} × ${data.image_height}`;
+                document.getElementById('decompressedImage').src = data.reconstructed_image;
+                
+                document.getElementById('downloadDecompressed').href = data.reconstructed_image;
+                document.getElementById('downloadDecompressed').download = 'decompressed.png';
+                
+                decompressResults.classList.add('show');
+            } catch (err) {
+                showDecompressError(err.message);
+            } finally {
+                decompressLoading.classList.remove('show');
+                decompressBtn.disabled = false;
+            }
+        });
+        
+        function showDecompressError(message) {
+            decompressError.textContent = 'Error: ' + message;
+            decompressError.classList.add('show');
         }
     </script>
 </body>

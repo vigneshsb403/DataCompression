@@ -100,11 +100,51 @@ def compress():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/decompress', methods=['POST'])
+def decompress():
+    try:
+        if 'bits_file' not in request.files:
+            return jsonify({'error': 'No bits file provided'}), 400
+        
+        file = request.files['bits_file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        bits_path = Path(app.config['UPLOAD_FOLDER']) / file.filename
+        output_path = Path(app.config['OUTPUT_FOLDER']) / f"{Path(file.filename).stem}_decompressed.png"
+        
+        file.save(bits_path)
+        compressed_size = bits_path.stat().st_size
+        
+        model = load_model()
+        reconstructed = model.decompress_file(str(bits_path))
+        save_image(reconstructed, str(output_path))
+        
+        img = Image.open(output_path)
+        
+        with open(output_path, 'rb') as f:
+            img_data = base64.b64encode(f.read()).decode()
+        
+        return jsonify({
+            'success': True,
+            'compressed_size': compressed_size,
+            'image_width': img.width,
+            'image_height': img.height,
+            'reconstructed_image': f"data:image/png;base64,{img_data}",
+            'output_file': str(output_path)
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/download/<filename>')
 def download_file(filename):
     file_path = Path(app.config['OUTPUT_FOLDER']) / filename
     if file_path.exists():
         return send_file(file_path, as_attachment=True)
+    upload_path = Path(app.config['UPLOAD_FOLDER']) / filename
+    if upload_path.exists():
+        return send_file(upload_path, as_attachment=True)
     return jsonify({'error': 'File not found'}), 404
 
 if __name__ == '__main__':

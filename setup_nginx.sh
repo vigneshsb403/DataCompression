@@ -37,7 +37,7 @@ sudo nginx -t
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "✅ Nginx configuration is valid!"
+    echo "[OK] Nginx configuration is valid!"
     echo ""
     echo "Starting nginx..."
     sudo systemctl enable nginx
@@ -63,7 +63,7 @@ if [ $? -eq 0 ]; then
     echo ""
 else
     echo ""
-    echo "❌ Nginx configuration test failed!"
+    echo "[ERROR] Nginx configuration test failed!"
     echo "Please check the configuration file: $NGINX_CONFIG"
     exit 1
 fi
