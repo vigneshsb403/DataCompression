@@ -579,8 +579,14 @@
                 
                 document.getElementById('downloadReconstructed').href = data.reconstructed_image;
                 document.getElementById('downloadReconstructed').download = 'reconstructed.png';
-                document.getElementById('downloadBits').href = `/download/${data.bits_file.split('/').pop()}`;
-                document.getElementById('downloadBits').download = data.bits_file.split('/').pop();
+                
+                // Download bits file from base64 data
+                if (data.bits_file_data) {
+                    const bitsBlob = base64ToBlob(data.bits_file_data, 'application/octet-stream');
+                    const bitsUrl = URL.createObjectURL(bitsBlob);
+                    document.getElementById('downloadBits').href = bitsUrl;
+                    document.getElementById('downloadBits').download = data.bits_file_name || 'compressed.bits';
+                }
                 
                 results.classList.add('show');
             } catch (err) {
@@ -602,6 +608,16 @@
             const sizes = ['Bytes', 'KB', 'MB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function base64ToBlob(base64, mimeType) {
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
         }
         
         bitsFileInput.addEventListener('change', (e) => {

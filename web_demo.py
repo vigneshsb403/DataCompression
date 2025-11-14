@@ -8,22 +8,18 @@ Then open http://localhost:5000 in your browser.
 import os
 import io
 import base64
+import tempfile
+import struct
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
 from PIL import Image
 import torch
 from torchvision.utils import save_image
-import numpy as np
 
 from lvae import get_model
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['OUTPUT_FOLDER'] = 'outputs'
-
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f"Loading model on device: {device}")
@@ -41,6 +37,42 @@ def load_model():
         model.compress_mode(True)
         print("✅ Model loaded successfully!")
     return model
+
+def decompress_from_bytes(bits_data):
+    """Decompress from bytes data instead of file path."""
+    # Create a temporary file to use with decompress_file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.bits') as tmp_file:
+        tmp_file.write(bits_data)
+        tmp_path = tmp_file.name
+    
+    try:
+        model = load_model()
+        reconstructed = model.decompress_file(tmp_path)
+        return reconstructed
+    finally:
+        # Clean up temporary file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+def validate_bits_file(bits_data):
+    """Validate that the bits file has the correct format."""
+    if len(bits_data) < 4:
+        raise ValueError("File is too small to be a valid bits file (must be at least 4 bytes)")
+    
+    # Check header (first 4 bytes should be image dimensions)
+    try:
+        header = bits_data[:4]
+        img_h, img_w = struct.unpack('2H', header)
+        if img_h == 0 or img_w == 0 or img_h > 100000 or img_w > 100000:
+            raise ValueError("Invalid image dimensions in bits file header")
+    except struct.error as e:
+        raise ValueError(f"Invalid bits file format: {str(e)}")
+    
+    # Check that there's enough data for at least lambda + shape + packed strings
+    if len(bits_data) < 4 + 4 + 6 + 1:  # header + lambda + shape + at least 1 byte for packed strings
+        raise ValueError("File is too small - missing compression data")
+    
+    return True
 
 @app.route('/')
 def index():
@@ -63,39 +95,56 @@ def compress():
         if img.mode in ('RGBA', 'LA', 'P'):
             img = img.convert('RGB')
         
-        upload_path = Path(app.config['UPLOAD_FOLDER']) / file.filename
-        bits_path = Path(app.config['OUTPUT_FOLDER']) / f"{Path(file.filename).stem}.bits"
-        output_path = Path(app.config['OUTPUT_FOLDER']) / f"{Path(file.filename).stem}_reconstructed.png"
+        original_size = len(file_data)
         
-        img.save(upload_path)
-        original_size = upload_path.stat().st_size
+        # Use temporary files for compression/decompression
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_img:
+            img.save(tmp_img.name)
+            tmp_img_path = tmp_img.name
         
-        model = load_model()
-        model.compress_file(str(upload_path), str(bits_path), lmb=lmb)
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.bits') as tmp_bits:
+            tmp_bits_path = tmp_bits.name
         
-        reconstructed = model.decompress_file(str(bits_path))
-        save_image(reconstructed, str(output_path))
-        
-        compressed_size = bits_path.stat().st_size
-        original_file_size = upload_path.stat().st_size
-        compression_ratio = original_file_size / compressed_size
-        bpp = (compressed_size * 8) / (img.height * img.width)
-        
-        with open(output_path, 'rb') as f:
-            img_data = base64.b64encode(f.read()).decode()
-        
-        return jsonify({
-            'success': True,
-            'original_size': original_file_size,
-            'compressed_size': compressed_size,
-            'compression_ratio': round(compression_ratio, 2),
-            'bpp': round(bpp, 4),
-            'image_width': img.width,
-            'image_height': img.height,
-            'reconstructed_image': f"data:image/png;base64,{img_data}",
-            'bits_file': str(bits_path),
-            'output_file': str(output_path)
-        })
+        try:
+            model = load_model()
+            model.compress_file(tmp_img_path, tmp_bits_path, lmb=lmb)
+            
+            # Read compressed size and data
+            compressed_size = os.path.getsize(tmp_bits_path)
+            with open(tmp_bits_path, 'rb') as f:
+                bits_data = f.read()
+            bits_data_b64 = base64.b64encode(bits_data).decode()
+            
+            # Decompress to get reconstructed image
+            reconstructed = model.decompress_file(tmp_bits_path)
+            
+            # Save reconstructed image to memory
+            img_buffer = io.BytesIO()
+            save_image(reconstructed, img_buffer, format='PNG')
+            img_buffer.seek(0)
+            img_data = base64.b64encode(img_buffer.read()).decode()
+            
+            compression_ratio = original_size / compressed_size
+            bpp = (compressed_size * 8) / (img.height * img.width)
+            
+            return jsonify({
+                'success': True,
+                'original_size': original_size,
+                'compressed_size': compressed_size,
+                'compression_ratio': round(compression_ratio, 2),
+                'bpp': round(bpp, 4),
+                'image_width': img.width,
+                'image_height': img.height,
+                'reconstructed_image': f"data:image/png;base64,{img_data}",
+                'bits_file_data': bits_data_b64,
+                'bits_file_name': f"{Path(file.filename).stem}.bits"
+            })
+        finally:
+            # Clean up temporary files
+            if os.path.exists(tmp_img_path):
+                os.unlink(tmp_img_path)
+            if os.path.exists(tmp_bits_path):
+                os.unlink(tmp_bits_path)
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -110,42 +159,51 @@ def decompress():
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
         
-        bits_path = Path(app.config['UPLOAD_FOLDER']) / file.filename
-        output_path = Path(app.config['OUTPUT_FOLDER']) / f"{Path(file.filename).stem}_decompressed.png"
+        # Read file data into memory
+        bits_data = file.read()
+        compressed_size = len(bits_data)
         
-        file.save(bits_path)
-        compressed_size = bits_path.stat().st_size
+        # Validate the bits file format
+        try:
+            validate_bits_file(bits_data)
+        except ValueError as e:
+            return jsonify({'error': f'Invalid bits file: {str(e)}'}), 400
         
-        model = load_model()
-        reconstructed = model.decompress_file(str(bits_path))
-        save_image(reconstructed, str(output_path))
+        # Decompress from bytes
+        reconstructed = decompress_from_bytes(bits_data)
         
-        img = Image.open(output_path)
+        # Extract image dimensions from the bits file header
+        img_h, img_w = struct.unpack('2H', bits_data[:4])
         
-        with open(output_path, 'rb') as f:
-            img_data = base64.b64encode(f.read()).decode()
+        # Save reconstructed image to memory
+        img_buffer = io.BytesIO()
+        save_image(reconstructed, img_buffer, format='PNG')
+        img_buffer.seek(0)
+        img_data = base64.b64encode(img_buffer.read()).decode()
         
         return jsonify({
             'success': True,
             'compressed_size': compressed_size,
-            'image_width': img.width,
-            'image_height': img.height,
+            'image_width': img_w,
+            'image_height': img_h,
             'reconstructed_image': f"data:image/png;base64,{img_data}",
-            'output_file': str(output_path)
         })
     
+    except struct.error as e:
+        return jsonify({'error': f'Invalid bits file format: The file does not match the expected compression format. {str(e)}'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_msg = str(e)
+        # Provide more helpful error messages
+        if 'pattern' in error_msg.lower() or 'unpack' in error_msg.lower():
+            error_msg = 'Invalid bits file format: The file does not match the expected compression format. Please ensure you are uploading a valid .bits file created by this compression tool.'
+        return jsonify({'error': error_msg}), 500
 
 @app.route('/download/<filename>')
 def download_file(filename):
-    file_path = Path(app.config['OUTPUT_FOLDER']) / filename
-    if file_path.exists():
-        return send_file(file_path, as_attachment=True)
-    upload_path = Path(app.config['UPLOAD_FOLDER']) / filename
-    if upload_path.exists():
-        return send_file(upload_path, as_attachment=True)
-    return jsonify({'error': 'File not found'}), 404
+    # This endpoint is kept for backward compatibility but files are now stored in memory
+    # In a production app, you might want to implement a proper download mechanism
+    return jsonify({'error': 'File download not available. Files are processed in memory.'}), 404
 
 if __name__ == '__main__':
     print("\n" + "="*50)
